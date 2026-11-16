@@ -1,0 +1,32 @@
+{
+  "name": "raccoongames-kit",
+  "version": "0.0.1",
+  "author": {
+    "name": "games.raccoons.lv"
+  },
+  "private": true,
+  "main": "src/index.coffee",
+  "exports": {
+    ".": "./src/index.coffee",
+    "./release": "./src/release/release.coffee",
+    "./play": "./src/play/play.coffee",
+    "./package.json": "./package.json"
+  },
+  "bin": {
+    "raccoongames": "bin/raccoongames.js"
+  },
+  "scripts": {
+    "test": "mocha",
+    "test:watch": "mocha --watch --watch-files \"src/**/*.coffee\""
+  },
+  "dependencies": {
+    "coffeescript": "2.7.1",
+    "esbuild": "0.25.12"
+  },
+  "devDependencies": {
+    "chai": "^5.1.2",
+    "mocha": "^11.6.0",
+    "proxyquire": "^2.1.3",
+    "sinon": "^19.0.2"
+  }
+}

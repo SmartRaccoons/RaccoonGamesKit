@@ -1,0 +1,52 @@
+# The release of a game, the same for every game, so it is written once,
+# here. A game's repo keeps only a few lines that call it on a push to its
+# main branch:
+#
+#   name: release
+#   on:
+#     push:
+#       branches: [main]
+#   permissions:
+#     contents: write
+#   jobs:
+#     release:
+#       uses: SmartRaccoons/RaccoonGamesKit/.github/workflows/release.yml@<the kit's tag>
+#
+# What it does there, in the game's repo: the game's tests, then the rules
+# packed into dist/ (npm run build, the kit's raccoongames build) and
+# pushed as the only commit of the game's release branch. That branch is
+# what Raccoon Games reads; main and the source stay as they are.
+#
+# Everything below runs as the game that called: the checkout, the token
+# and github.repository are the game's, not the kit's. The kit is public,
+# so a game needs no key to call this or to install the kit.
+name: release
+on:
+  workflow_call:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      # no lock file is kept: the game names the kit by its tag, and the kit
+      # holds the two tools that shape game.js (coffeescript, esbuild) at
+      # exact versions
+      - run: npm install --no-audit --no-fund
+      - run: npm test
+      - run: npm run build
+
+      # dist/ becomes the release branch's one commit, each build replacing
+      # the last
+      - name: publish
+        run: |
+          cd dist
+          git init -q -b release
+          git add -A
+          git -c user.name=build -c user.email=build@users.noreply.github.com \
+            commit -q -m "build $GITHUB_SHA"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" release
