@@ -10,12 +10,18 @@
 #     contents: write
 #   jobs:
 #     release:
-#       uses: SmartRaccoons/RaccoonGamesKit/.github/workflows/release.yml@<the kit's tag>
+#       uses: SmartRaccoons/RaccoonGamesKit/.github/workflows/release.yml@main
+#
+# @main, not a tag: the game says which kit builds it in one place, its
+# package.json. This file only installs, tests, builds and publishes, so it
+# is kept working for every kit a game may name.
 #
 # What it does there, in the game's repo: the game's tests, then the rules
 # packed into dist/ (npm run build, the kit's raccoongames build) and
-# pushed as the only commit of the game's release branch. That branch is
-# what Raccoon Games reads; main and the source stay as they are.
+# pushed as a release: a tag, release/<version>, on a commit that holds
+# dist/ and nothing else. Those tags are what Raccoon Games reads: it
+# brings the latest versions in, and the game's owner says which is live.
+# main and the source stay as they are.
 #
 # Everything below runs as the game that called: the checkout, the token
 # and github.repository are the game's, not the kit's. The kit is public,
@@ -40,13 +46,33 @@ jobs:
       - run: npm test
       - run: npm run build
 
-      # dist/ becomes the release branch's one commit, each build replacing
-      # the last
+      # dist/ becomes a release: a commit that holds it and nothing else,
+      # under the tag release/<version>. The version is the game's own, from
+      # its package.json. One that is released already is not written over:
+      # the patch number is raised until the version is free, so 0.0.2 goes
+      # out as 0.0.3 when there is a 0.0.2. To start a new line of versions,
+      # the game raises the first or the second number itself.
       - name: publish
         run: |
+          set -o pipefail
+          remote="https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git"
+          version=$(node -p "require('./package.json').version")
+          if ! [[ "$version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "package.json: version has to be three numbers, as in 0.0.2"
+            exit 1
+          fi
+          line="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}"
+          patch="${BASH_REMATCH[3]}"
+          released=$(git ls-remote --tags "$remote" 'refs/tags/release/*' | sed 's|.*refs/tags/release/||')
+          while echo "$released" | grep -qxF "$line.$patch"; do
+            patch=$((patch + 1))
+          done
+          version="$line.$patch"
           cd dist
           git init -q -b release
           git add -A
           git -c user.name=build -c user.email=build@users.noreply.github.com \
-            commit -q -m "build $GITHUB_SHA"
-          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" release
+            commit -q -m "$version, built from $GITHUB_SHA"
+          git tag "release/$version"
+          git push -q "$remote" "release/$version"
+          echo "released $version"
